@@ -19,12 +19,12 @@
             --primary-light: #eff6ff;
             --accent: #f59e0b;
             
-            --bg-main: #e3eaf1;
+            --bg-main: #f8fafc;
             --bg-card: #ffffff;
             --bg-sidebar: #ffffff;
             --bg-input: #f1f5f9;
             
-            --text-main: #404041;
+            --text-main: #0f172a;
             --text-muted: #64748b;
             --border-color: #e2e8f0;
             
@@ -51,7 +51,7 @@
         body.theme-verde { --primary: #10b981; --primary-dark: #047857; --primary-light: #ecfdf5; }
         body.theme-morado { --primary: #8b5cf6; --primary-dark: #6d28d9; --primary-light: #f5f3ff; }
         body.theme-naranja { --primary: #f97316; --primary-dark: #c2410c; --primary-light: #fff7ed; }
-        body.theme-negro { --primary: #7a828d; --primary-dark: #557fe0; --primary-light: #f8fafc; }
+        body.theme-negro { --primary: #334155; --primary-dark: #0f172a; --primary-light: #f8fafc; }
 
         body.dark-mode {
             --bg-main: #0b0f17;
@@ -121,18 +121,6 @@
         }
         .btn-icon:hover { background: var(--primary-light); color: var(--primary); transform: translateY(-2px); }
         .btn-icon.active { background: var(--primary); color: white; }
-
-        /* Estilos del Micrófono en escucha */
-        .btn-icon.listening {
-            background: #ef4444 !important;
-            color: white !important;
-            animation: pulse-mic 1.2s infinite;
-        }
-        @keyframes pulse-mic {
-            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-            70% { transform: scale(1.08); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-        }
 
         /* COLOR PICKER */
         .color-picker-container {
@@ -217,7 +205,7 @@
         .sheets-container { display: flex; flex-direction: row; gap: 32px; align-items: flex-start; width: max-content; }
         .sheet {
             background-color: var(--bg-card); padding: 24px; border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-md); position: relative; border: 0.6px solid var(--border-color);
+            box-shadow: var(--shadow-md); position: relative; border: 1px solid var(--border-color);
         }
         .sheet-title {
             position: absolute; top: -16px; left: 24px; background: var(--primary); color: white;
@@ -326,6 +314,7 @@
         .fill-matrix input::-webkit-outer-spin-button, .fill-matrix input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .fill-matrix input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-light); background-color: var(--bg-card); }
 
+        /* Estilos de Error para Validación de Duplicados o Rangos */
         .fill-matrix input.input-invalid {
             border-color: #ef4444 !important;
             background-color: #fef2f2 !important;
@@ -343,6 +332,7 @@
 
         .pattern-item-box { border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 10px; display: flex; gap: 15px; align-items: center; background: var(--bg-main); }
 
+        /* MENÚ CONTEXTUAL PERSONALIZADO */
         .custom-context-menu {
             position: fixed; background: var(--bg-card); border: 1px solid var(--border-color);
             border-radius: var(--radius-sm); box-shadow: var(--shadow-md); padding: 4px;
@@ -445,15 +435,10 @@
                 <select id="modeSelect" onchange="updatePatterns()"></select>
             </div>
 
-            <!-- Entrada de Número con Micrófono -->
+            <!-- Entrada de Número -->
             <div class="input-group">
                 <label for="numberInput"><i data-lucide="hash" size="14"></i> Cantar Número</label>
-                <div style="display: flex; gap: 6px;">
-                    <input type="number" id="numberInput" class="number-input-box" min="1" max="75" placeholder="00">
-                    <button class="btn-icon" id="micBtn" onclick="toggleMicListening()" style="height: auto; width: 48px;" title="Dictar por micrófono (Ej: 'B 1', 'I 20')">
-                        <i data-lucide="mic"></i>
-                    </button>
-                </div>
+                <input type="number" id="numberInput" class="number-input-box" min="1" max="75" placeholder="00">
             </div>
 
             <div class="action-buttons" style="display: flex; flex-direction: column; gap: 8px;">
@@ -553,8 +538,6 @@
         ];
 
         let speechEnabled = false;
-        let recognition = null;
-        let isListening = false;
 
         function createEmptyCard() {
             const card = Array(25).fill("");
@@ -596,106 +579,6 @@
         let markedHistory = [];
         let createdModesCount = 0;
         let editingGroupId = null;
-
-        /* RECONOCIMIENTO DE VOZ POR MICRÓFONO */
-        function initSpeechRecognition() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert("Tu navegador no soporta el reconocimiento de voz por micrófono. Te recomendamos usar Google Chrome o Edge.");
-                return null;
-            }
-            
-            const rec = new SpeechRecognition();
-            rec.continuous = true;
-            rec.interimResults = false;
-            rec.lang = 'es-ES';
-
-            rec.onresult = (event) => {
-                const lastIndex = event.results.length - 1;
-                const transcript = event.results[lastIndex][0].transcript.trim();
-                parseAndMarkSpokenNumber(transcript);
-            };
-
-            rec.onerror = (event) => {
-                console.warn("Error en el micrófono: ", event.error);
-                if (event.error === 'not-allowed') {
-                    stopMicListening();
-                    alert("Permiso de micrófono denegado.");
-                }
-            };
-
-            rec.onend = () => {
-                if (isListening) {
-                    try { rec.start(); } catch(e) {}
-                } else {
-                    updateMicUI(false);
-                }
-            };
-
-            return rec;
-        }
-
-        function toggleMicListening() {
-            if (!recognition) {
-                recognition = initSpeechRecognition();
-                if (!recognition) return;
-            }
-
-            if (isListening) {
-                stopMicListening();
-            } else {
-                startMicListening();
-            }
-        }
-
-        function startMicListening() {
-            if (!recognition) return;
-            isListening = true;
-            try {
-                recognition.start();
-                updateMicUI(true);
-            } catch(e) {
-                console.error(e);
-            }
-        }
-
-        function stopMicListening() {
-            isListening = false;
-            if (recognition) {
-                try { recognition.stop(); } catch(e) {}
-            }
-            updateMicUI(false);
-        }
-
-        function updateMicUI(listening) {
-            const micBtn = document.getElementById('micBtn');
-            if (!micBtn) return;
-            if (listening) {
-                micBtn.classList.add('listening');
-                micBtn.innerHTML = '<i data-lucide="mic-off"></i>';
-                micBtn.title = "Escuchando... Haz clic para detener";
-            } else {
-                micBtn.classList.remove('listening');
-                micBtn.innerHTML = '<i data-lucide="mic"></i>';
-                micBtn.title = "Dictar por micrófono (Ej: 'B 1', 'I 20')";
-            }
-            lucide.createIcons();
-        }
-
-        function parseAndMarkSpokenNumber(text) {
-            // Extrae solo las cifras del texto dictado
-            const matches = text.match(/\d+/g);
-            if (!matches) return;
-
-            const numStr = matches[0];
-            const num = parseInt(numStr, 10);
-
-            if (!isNaN(num) && num >= 1 && num <= 75) {
-                const input = document.getElementById('numberInput');
-                if (input) input.value = num;
-                markFromInput();
-            }
-        }
 
         /* LECTURA POR VOZ */
         function toggleSpeech() {
@@ -1262,6 +1145,7 @@ Dame solo el bloque de código de texto para copiar y pegar directamente en un a
                     cardDiv.appendChild(matrix);
                     container.appendChild(cardDiv);
 
+                    // Ejecutar validación inicial para cada columna del cartón cargado
                     for (let col = 0; col < 5; col++) {
                         const sampleInput = matrix.querySelector(`input[data-col="${col}"]`);
                         if (sampleInput) validateCardInput(sampleInput);
